@@ -1,0 +1,47 @@
+body {
+    display: grid;
+    grid-template-columns: 1fr 400px 1fr;
+    grid-template-rows: 1fr 400px 1fr;
+    min-height: 100vh;
+    margin: 0;
+    font-family: 'Karla', sans-serif;
+    user-select: none;
+    font-size: 12pt;
+}
+
+body>header {
+    margin-top: auto;
+    grid-column: 2;
+    margin-bottom: 20px;
+}
+
+body>header>h1 {
+    margin: 10px 0;
+}
+
+body>main {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+form {
+    gap: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+input {
+    font-size: inherit;
+    font-family: inherit;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 2px solid #d8d8d8;
+}
+
+input[type="submit"] {
+    border: none;
+    margin-right: auto;
+    padding: 10px 22px;
+    margin-top: 20px;
+    font-size: 12pt;
+}

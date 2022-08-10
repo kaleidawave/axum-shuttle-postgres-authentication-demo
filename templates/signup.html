@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Signup{% endblock title %}
+{% block content %}
+<form action="/signup" enctype="multipart/form-data" method="post">
+    <label for="username">Username</label>
+    <input type="text" name="username" id="username" autocomplete="username" minlength="1" maxlength="20" pattern="[0-9a-z]+" required>
+    <label for="password">Password</label>
+    <input type="password" name="password" id="password" autocomplete="new-password" required>
+    <label for="confirm_password">Confirm Password</label>
+    <input type="password" name="confirm_password" id="confirm_password" autocomplete="new-password" required>
+    <input type="submit" value="Signup">
+</form>
+{% endblock content %}

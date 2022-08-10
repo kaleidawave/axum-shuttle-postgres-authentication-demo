@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{username}}{% endblock title %}
+{% block content %}
+<p>Username {{ username }}</p>
+<form method="post" action="/delete">
+    <input type="submit" value="Delete account">
+</form>
+{% endblock content %}

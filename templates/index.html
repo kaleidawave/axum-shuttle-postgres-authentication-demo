@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Axum Shuttle Postgres Authentication Demo Site{% endblock title %}
+{% block content %}
+<p>
+    Built on a <a href="https://docs.rs/axum">Axum</a> web server with <a href="https://docs.rs/tera">Tera</a> templates, a postgres database with <a href="https://docs.rs/sqlx">sqlx</a> and hosted on <a href="https://shuttle.rs/">Shuttle!</a>
+</p>
+{% if logged_in %}
+<a href="/me">View my page</a>
+<form method="post" action="/logout">
+    <input type="submit" value="Logout">
+</form>
+{% else %}
+<p>
+    <a href="/signup">Signup</a> or <a href="/login">Login</a>
+</p>
+{% endif %}
+<p>
+    <a href="/">View full article</a>
+</p>
+<p>
+    <a href="https://github.com/kaleidawave/axum-shuttle-postgres-authentication-demo">View repository</a>
+</p>
+<p>
+    <a href="/users">View all users</a>
+</p>
+{% endblock content %}
