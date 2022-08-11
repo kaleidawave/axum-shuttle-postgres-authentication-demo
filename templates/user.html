@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{username}}{% endblock title %}
 {% block content %}
-<p>Username {{ username }}</p>
+<p>@{{ username }}</p>
+{% if is_self %}
 <form method="post" action="/delete">
     <input type="submit" value="Delete account">
 </form>
+{% endif %}
 {% endblock content %}

@@ -298,6 +298,7 @@ name = "axum-postgres-authentication"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "cookie",
  "http",
  "http-body",
  "once_cell",

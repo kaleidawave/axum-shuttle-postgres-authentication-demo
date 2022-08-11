@@ -1,6 +1,5 @@
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 
-use once_cell::sync::OnceCell;
 use pbkdf2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Pbkdf2,
@@ -9,7 +8,7 @@ use rand_core::{OsRng, RngCore};
 
 use crate::{
     errors::{LoginError, SignupError},
-    Database, Random,
+    Database, Random, USER_COOKIE_NAME,
 };
 
 #[derive(Clone, Copy)]
@@ -40,38 +39,36 @@ impl SessionToken {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct User {
     pub username: String,
 }
 
 #[derive(Clone)]
-pub(crate) struct AuthState(Option<(SessionToken, Arc<OnceCell<User>>)>, Database);
+pub(crate) struct AuthState(Option<(SessionToken, Option<User>, Database)>);
 
 impl AuthState {
     pub fn logged_in(&self) -> bool {
         self.0.is_some()
     }
 
-    pub async fn get_user(&self) -> Option<&User> {
-        let (session_token, cell) = self.0.as_ref()?;
-        // Want to use get_or_init here but function needs to be async
-        if cell.get().is_none() {
+    pub async fn get_user(&mut self) -> Option<&User> {
+        let (session_token, store, database) = self.0.as_mut()?;
+        if store.is_none() {
             const QUERY: &str =
                 "SELECT id, username FROM users JOIN sessions ON user_id = id WHERE session_token = $1;";
 
             let user: Option<(i32, String)> = sqlx::query_as(QUERY)
                 .bind(&session_token.into_database_value())
-                .fetch_optional(&self.1)
+                .fetch_optional(&*database)
                 .await
                 .unwrap();
 
             if let Some((_id, username)) = user {
-                let _err = cell.set(User { username });
-            } else {
-                dbg!("Invalid session_token used");
+                *store = Some(User { username });
             }
         }
-        cell.get()
+        store.as_ref()
     }
 }
 
@@ -97,29 +94,24 @@ pub(crate) async fn auth<B>(
     next: axum::middleware::Next<B>,
     database: Database,
 ) -> axum::response::Response {
-    // Assuming we only have one cookie
-    let key_pair_opt = req
+    let session_token = req
         .headers()
-        .get("Cookie")
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.split_once(';').map(|(left, _)| left).unwrap_or(value))
-        .and_then(|kv| kv.split_once('='));
+        .get_all("Cookie")
+        .iter()
+        .filter_map(|cookie| {
+            cookie
+                .to_str()
+                .ok()
+                .and_then(|cookie| cookie.parse::<cookie::Cookie>().ok())
+        })
+        .find_map(|cookie| {
+            (cookie.name() == USER_COOKIE_NAME).then(move || cookie.value().to_owned())
+        })
+        .and_then(|cookie_value| cookie_value.parse::<SessionToken>().ok());
 
-    let auth_state = if let Some((key, value)) = key_pair_opt {
-        if key != crate::USER_COOKIE_NAME {
-            None
-        } else if let Ok(value) = value.parse::<SessionToken>() {
-            Some(value)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-    req.extensions_mut().insert(AuthState(
-        auth_state.map(|v| (v, Arc::new(OnceCell::new()))),
-        database,
-    ));
+    req.extensions_mut()
+        .insert(AuthState(session_token.map(|v| (v, None, database))));
+
     next.run(req).await
 }
 
@@ -131,7 +123,9 @@ pub(crate) async fn signup(
 ) -> Result<SessionToken, SignupError> {
     fn valid_username(username: &str) -> bool {
         (1..20).contains(&username.len())
-            && username.chars().all(|c| matches!(c, 'a'..='z' | '0'..='9'))
+            && username
+                .chars()
+                .all(|c| matches!(c, 'a'..='z' | '0'..='9' | '-'))
     }
 
     if !valid_username(username) {
@@ -165,8 +159,7 @@ pub(crate) async fn signup(
         {
             return Err(SignupError::UsernameExists);
         }
-        Err(err) => {
-            dbg!(err);
+        Err(_err) => {
             return Err(SignupError::InternalError);
         }
     };
@@ -196,8 +189,7 @@ pub(crate) async fn login(
 
     // Verify password against PHC string
     let parsed_hash = PasswordHash::new(&hashed_password).unwrap();
-    if let Err(err) = Pbkdf2.verify_password(password.as_bytes(), &parsed_hash) {
-        dbg!(err);
+    if let Err(_err) = Pbkdf2.verify_password(password.as_bytes(), &parsed_hash) {
         return Err(LoginError::WrongPassword);
     }
 
@@ -210,9 +202,10 @@ pub(crate) async fn delete_user(auth_state: AuthState) {
             SELECT user_id FROM sessions WHERE sessions.session_token = $1
         );";
 
+    let auth_state = auth_state.0.unwrap();
     let _res = sqlx::query(DELETE_QUERY)
-        .bind(&auth_state.0.unwrap().0.into_database_value())
-        .execute(&auth_state.1)
+        .bind(&auth_state.0.into_database_value())
+        .execute(&auth_state.2)
         .await
         .unwrap();
 }

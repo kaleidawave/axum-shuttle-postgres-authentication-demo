@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use axum::{
     extract::{Extension, Multipart, Path},
     middleware::{self},
-    response::{Html, IntoResponse},
+    response::{Html, IntoResponse, Redirect},
     routing::{any, get, post},
     Router,
 };
@@ -18,6 +18,7 @@ use errors::{LoginError, NoUser, NotLoggedIn, SignupError};
 use pbkdf2::password_hash::rand_core::OsRng;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
+use shuttle_service::ShuttleAxum;
 use tera::{Context, Tera};
 use utils::*;
 
@@ -29,9 +30,7 @@ const USER_COOKIE_NAME: &str = "user_token";
 const COOKIE_MAX_AGE: &str = "9999999";
 
 #[shuttle_service::main]
-async fn server(
-    #[shared::Postgres] pool: Database,
-) -> Result<sync_wrapper::SyncWrapper<axum::routing::Router>, shuttle_service::Error> {
+async fn server(#[shared::Postgres] pool: Database) -> ShuttleAxum {
     sqlx::Executor::execute(&pool, include_str!("../schema.sql"))
         .await
         .map_err(shuttle_service::error::CustomError::new)?;
@@ -47,7 +46,7 @@ pub fn get_router(database: Database) -> Router {
         ("signup", include_str!("../templates/signup.html")),
         ("login", include_str!("../templates/login.html")),
         ("users", include_str!("../templates/users.html")),
-        ("me", include_str!("../templates/me.html")),
+        ("user", include_str!("../templates/user.html")),
     ])
     .unwrap();
 
@@ -84,6 +83,7 @@ async fn index(
 
 async fn user(
     Path(username): Path<String>,
+    Extension(mut auth_state): Extension<AuthState>,
     Extension(database): Extension<Database>,
     Extension(templates): Extension<Templates>,
 ) -> impl IntoResponse {
@@ -96,9 +96,15 @@ async fn user(
         .unwrap();
 
     if let Some((username,)) = user {
+        let user_is_self = auth_state
+            .get_user()
+            .await
+            .map(|logged_in_user| logged_in_user.username == username)
+            .unwrap_or_default();
         let mut context = Context::new();
         context.insert("username", &username);
-        Ok(Html(templates.render("me", &context).unwrap()))
+        context.insert("is_self", &user_is_self);
+        Ok(Html(templates.render("user", &context).unwrap()))
     } else {
         Err(error_page(&NoUser(username)))
     }
@@ -175,20 +181,15 @@ async fn styles() -> impl IntoResponse {
         .body(include_str!("../public/styles.css").to_owned())
         .unwrap()
 }
+
 async fn me(
-    Extension(current_user): Extension<AuthState>,
-    Extension(templates): Extension<Templates>,
+    Extension(mut current_user): Extension<AuthState>,
 ) -> Result<impl IntoResponse, impl IntoResponse> {
-    let user = if let Some(user) = current_user.get_user().await {
-        user
+    if let Some(user) = current_user.get_user().await {
+        Ok(Redirect::to(&format!("/user/{}", user.username)))
     } else {
-        return Err(error_page(&NotLoggedIn));
-    };
-
-    let mut context = Context::new();
-    context.insert("username", &user.username);
-
-    Ok(Html(templates.render("me", &context).unwrap()))
+        Err(error_page(&NotLoggedIn))
+    }
 }
 
 async fn users(
