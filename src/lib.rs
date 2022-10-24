@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use axum::{
     extract::{Extension, Multipart, Path},
-    middleware::{self},
+    middleware,
     response::{Html, IntoResponse, Redirect},
     routing::{any, get, post},
     Router,
@@ -18,7 +18,8 @@ use errors::{LoginError, NoUser, NotLoggedIn, SignupError};
 use pbkdf2::password_hash::rand_core::OsRng;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
-use shuttle_service::ShuttleAxum;
+use shuttle_service::{error::CustomError, ShuttleAxum};
+use sqlx::Executor;
 use tera::{Context, Tera};
 use utils::*;
 
@@ -30,10 +31,10 @@ const USER_COOKIE_NAME: &str = "user_token";
 const COOKIE_MAX_AGE: &str = "9999999";
 
 #[shuttle_service::main]
-async fn server(#[shared::Postgres] pool: Database) -> ShuttleAxum {
-    sqlx::Executor::execute(&pool, include_str!("../schema.sql"))
+async fn server(#[shuttle_shared_db::Postgres] pool: Database) -> ShuttleAxum {
+    pool.execute(include_str!("../schema.sql"))
         .await
-        .map_err(shuttle_service::error::CustomError::new)?;
+        .map_err(CustomError::new)?;
 
     Ok(sync_wrapper::SyncWrapper::new(get_router(pool)))
 }
