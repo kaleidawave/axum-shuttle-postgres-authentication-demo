@@ -4,20 +4,18 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[lib]
-
 [dependencies]
-axum = { version = "0.5.13", features = ["multipart"] }
-http = "0.2.8"
-http-body = "0.4.5"
-once_cell = "1.13.0"
-pbkdf2 = "0.11.0"
-rand_chacha = "0.3.1"
+axum = { version = "0.6.18", features = ["multipart"] }
+cookie = "0.17.0"
+http = "0.2.9"
+shuttle-axum = "0.24.0"
+shuttle-runtime = "0.24.0"
+sqlx = { version = "0.7.1", features = ["runtime-tokio-native-tls", "postgres"] }
+tokio = "1.28.2"
+pbkdf2 = { version = "0.12", features = ["simple"] }
 rand_core = { version = "0.6", features = ["std"] }
-sqlx = { version = "0.6.2", features = ["postgres", "runtime-tokio-native-tls"] }
-tera = { version = "1.16.0", default_features = false }
-sync_wrapper = "0.1.1"
-shuttle-service = { version = "0.7.1", features = ["web-axum"] }
-shuttle-shared-db = { version = "0.7.1", features = ["postgres"] }
-cookie = "0.16.0"
+rand_chacha = "0.3.1"
+http-body = "0.4.5"
+shuttle-service = "0.24.0"
+tera = "1.19.0"
+shuttle-shared-db = { version = "0.24.0", features = ["postgres-rustls", "sqlx", "postgres"] }
