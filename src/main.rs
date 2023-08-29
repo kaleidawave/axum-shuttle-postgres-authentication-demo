@@ -3,6 +3,7 @@ mod errors;
 mod utils;
 
 use std::sync::{Arc, Mutex};
+use sqlx::Postgres;
 
 use axum::{
     extract::{Extension, Multipart, Path},
@@ -18,11 +19,13 @@ use errors::{LoginError, NoUser, NotLoggedIn, SignupError};
 use pbkdf2::password_hash::rand_core::OsRng;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
-use shuttle_service::{error::CustomError, ShuttleAxum};
+use shuttle_service::{error::CustomError};
+use shuttle_axum::ShuttleAxum;
 use sqlx::Executor;
 use tera::{Context, Tera};
 use utils::*;
 
+use sqlx::PgPool;
 type Templates = Arc<Tera>;
 type Database = sqlx::PgPool;
 type Random = Arc<Mutex<ChaCha8Rng>>;
@@ -30,14 +33,18 @@ type Random = Arc<Mutex<ChaCha8Rng>>;
 const USER_COOKIE_NAME: &str = "user_token";
 const COOKIE_MAX_AGE: &str = "9999999";
 
-#[shuttle_service::main]
-async fn server(#[shuttle_shared_db::Postgres] pool: Database) -> ShuttleAxum {
-    pool.execute(include_str!("../schema.sql"))
-        .await
-        .map_err(CustomError::new)?;
 
-    Ok(sync_wrapper::SyncWrapper::new(get_router(pool)))
+#[shuttle_runtime::main]
+async fn server(
+  #[shuttle_shared_db::Postgres] pool: PgPool
+) -> ShuttleAxum {
+pool.execute(include_str!("../schema.sql"))
+          .await
+          .map_err(CustomError::new)?;
+ 
+      Ok(get_router(pool).into())
 }
+
 
 pub fn get_router(database: Database) -> Router {
     let mut tera = Tera::default();
